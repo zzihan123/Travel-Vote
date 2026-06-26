@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>후쿠오카 여행 🇯🇵</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+:root {
+  --bg:#fff; --bg2:#f8f7f4; --bg3:#efefeb;
+  --t:#1a1a18; --t2:#6b6b64; --t3:#b0b0a6;
+  --br:rgba(0,0,0,.08); --br2:rgba(0,0,0,.15);
+  --acc:#e8533a; --r:12px; --rs:8px; --header-h:56px;
+}
+html,body { height:100%; font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; }
+body { background:var(--bg2); color:var(--t); -webkit-font-smoothing:antialiased; overscroll-behavior:none; }
+.app { max-width:480px; margin:0 auto; background:var(--bg); min-height:100vh; display:flex; flex-direction:column; }
+
+/* 헤더 */
+.header { height:var(--header-h); display:flex; align-items:center; padding:0 16px; gap:10px; border-bottom:.5px solid var(--br); position:sticky; top:0; z-index:30; background:var(--bg); }
+.header-back { background:none; border:none; font-size:22px; cursor:pointer; padding:4px; color:var(--t2); display:none; line-height:1; }
+.header-back.show { display:flex; align-items:center; }
+.header-title { font-size:17px; font-weight:700; flex:1; }
+.header-action { background:var(--acc); color:#fff; border:none; border-radius:20px; padding:6px 14px; font-size:13px; font-weight:600; cursor:pointer; }
+.db-dot { width:7px; height:7px; border-radius:50%; background:var(--t3); flex-shrink:0; transition:background .3s; }
+.db-dot.live { background:#10b981; }
+.db-dot.err  { background:#e8533a; }
+
+/* 탭 */
+.tabbar { display:flex; border-bottom:.5px solid var(--br); background:var(--bg); position:sticky; top:var(--header-h); z-index:29; }
+.tab { flex:1; padding:14px 8px; text-align:center; font-size:13px; font-weight:500; color:var(--t3); cursor:pointer; border-bottom:2px solid transparent; }
+.tab.on { color:var(--acc); border-bottom-color:var(--acc); }
+
+.screen { display:none; flex:1; flex-direction:column; overflow:hidden; }
+.screen.on { display:flex; }
+
+/* 폴더 목록 */
+.folder-list { padding:16px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; flex:1; }
+.folder-card { background:var(--bg); border:.5px solid var(--br2); border-radius:var(--r); padding:16px; cursor:pointer; display:flex; align-items:center; gap:14px; position:relative; overflow:hidden; }
+.folder-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--fc,var(--acc)); }
+.folder-icon { font-size:28px; flex-shrink:0; }
+.folder-info { flex:1; min-width:0; }
+.folder-name { font-size:15px; font-weight:600; color:var(--t); margin-bottom:3px; }
+.folder-meta { font-size:12px; color:var(--t2); }
+.folder-arrow { font-size:16px; color:var(--t3); }
+.folder-add-btn { width:100%; padding:14px; border:1.5px dashed var(--br2); border-radius:var(--r); background:none; color:var(--t2); font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; }
+.empty-state { padding:48px 24px; text-align:center; color:var(--t2); font-size:14px; line-height:1.6; }
+.empty-icon { font-size:40px; display:block; margin-bottom:12px; }
+
+/* 폴더 상세 */
+.folder-detail { display:flex; flex-direction:column; flex:1; overflow:hidden; }
+.map-container { height:260px; position:relative; background:var(--bg3); flex-shrink:0; }
+#gmap { width:100%; height:100%; }
+.map-loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--t2); flex-direction:column; gap:8px; }
+.place-list-header { padding:12px 16px 8px; display:flex; align-items:center; justify-content:space-between; border-bottom:.5px solid var(--br); flex-shrink:0; }
+.place-list-title { font-size:13px; font-weight:600; color:var(--t2); }
+.sort-tabs { display:flex; gap:4px; }
+.sort-tab { font-size:12px; padding:4px 10px; border-radius:20px; border:.5px solid var(--br2); background:none; color:var(--t2); cursor:pointer; }
+.sort-tab.on { background:var(--t); color:var(--bg); border-color:transparent; }
+.place-list { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.place-item-wrap { position:relative; overflow:hidden; border-bottom:.5px solid var(--br); }
+.place-item { display:flex; align-items:center; gap:12px; padding:12px 16px; background:var(--bg); transition:transform .25s ease; cursor:pointer; user-select:none; }
+.place-rank { font-size:13px; font-weight:700; color:var(--t3); min-width:18px; text-align:center; flex-shrink:0; }
+.place-rank.r1{color:#e8a800;} .place-rank.r2{color:var(--t2);} .place-rank.r3{color:#c8895a;}
+.place-thumb { width:48px; height:48px; border-radius:var(--rs); overflow:hidden; background:var(--bg3); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:22px; }
+.place-thumb img { width:100%; height:100%; object-fit:cover; }
+.place-info { flex:1; min-width:0; }
+.place-name { font-size:14px; font-weight:600; color:var(--t); margin-bottom:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.place-cat  { font-size:11px; color:var(--t3); margin-bottom:3px; }
+.place-addr { font-size:12px; color:var(--t2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vote-zone  { display:flex; flex-direction:column; align-items:center; gap:1px; flex-shrink:0; }
+.vote-btn   { background:none; border:none; font-size:20px; cursor:pointer; padding:2px; line-height:1; }
+.vote-count { font-size:12px; font-weight:600; color:var(--t2); }
+.delete-bg  { position:absolute; right:0; top:0; bottom:0; width:80px; background:#e8533a; display:flex; align-items:center; justify-content:center; cursor:pointer; transform:translateX(100%); }
+.delete-bg span { color:#fff; font-size:13px; font-weight:600; }
+.added-by { font-size:11px; color:var(--t3); margin-top:2px; }
+
+/* 검색 */
+.search-bar { padding:12px 16px; border-bottom:.5px solid var(--br); flex-shrink:0; }
+.search-input-wrap { position:relative; }
+.search-input { width:100%; padding:10px 36px 10px 14px; font-size:14px; border:.5px solid var(--br2); border-radius:var(--r); background:var(--bg2); color:var(--t); outline:none; -webkit-appearance:none; }
+.search-input:focus { border-color:var(--acc); background:var(--bg); }
+.search-clear { position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--t3); font-size:18px; cursor:pointer; line-height:1; display:none; }
+.search-clear.show { display:block; }
+.search-results { flex:1; overflow-y:auto; }
+.search-result-item { padding:12px 16px; border-bottom:.5px solid var(--br); display:flex; align-items:center; gap:12px; }
+.result-icon { width:40px; height:40px; border-radius:var(--rs); background:var(--bg3); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; overflow:hidden; }
+.result-icon img { width:100%; height:100%; object-fit:cover; }
+.result-info { flex:1; min-width:0; }
+.result-name { font-size:14px; font-weight:500; color:var(--t); margin-bottom:2px; }
+.result-addr { font-size:12px; color:var(--t2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.result-add-btn { background:var(--acc); color:#fff; border:none; border-radius:20px; padding:5px 12px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; flex-shrink:0; }
+.result-add-btn.added { background:var(--bg3); color:var(--t2); }
+.search-hint { padding:40px 24px; text-align:center; color:var(--t2); font-size:14px; line-height:1.6; }
+.search-hint-icon { font-size:36px; display:block; margin-bottom:10px; }
+
+/* 모달 공통 */
+.modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:100; align-items:flex-end; justify-content:center; }
+.modal-bg.open { display:flex; }
+.modal { background:var(--bg); border-radius:20px 20px 0 0; padding:24px 20px 40px; width:100%; max-width:480px; }
+.modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+.modal-title { font-size:17px; font-weight:700; }
+.modal-close { background:none; border:none; font-size:24px; cursor:pointer; color:var(--t2); line-height:1; }
+.modal-field { margin-bottom:14px; }
+.modal-field label { display:block; font-size:12px; color:var(--t2); margin-bottom:6px; font-weight:500; }
+.modal-input { width:100%; padding:11px 14px; font-size:15px; border:.5px solid var(--br2); border-radius:var(--rs); background:var(--bg); color:var(--t); outline:none; -webkit-appearance:none; }
+.modal-input:focus { border-color:var(--acc); }
+.emoji-picker { display:flex; gap:8px; flex-wrap:wrap; }
+.emoji-opt { width:40px; height:40px; border-radius:var(--rs); border:.5px solid var(--br2); background:var(--bg2); font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .12s; }
+.emoji-opt.on { border-color:var(--acc); background:#fef0ee; }
+.color-picker { display:flex; gap:8px; flex-wrap:wrap; }
+.color-opt { width:28px; height:28px; border-radius:50%; cursor:pointer; border:2.5px solid transparent; }
+.color-opt.on { border-color:var(--t); }
+.modal-btn { width:100%; padding:14px; background:var(--acc); color:#fff; border:none; border-radius:var(--r); font-size:15px; font-weight:700; cursor:pointer; margin-top:6px; }
+.folder-select-list { display:flex; flex-direction:column; gap:8px; max-height:300px; overflow-y:auto; }
+.folder-select-item { padding:12px 14px; border:.5px solid var(--br2); border-radius:var(--rs); cursor:pointer; display:flex; align-items:center; gap:10px; font-size:14px; font-weight:500; }
+.folder-select-item.on { border-color:var(--acc); background:#fef0ee; color:var(--acc); }
+
+/* 이름 입력 모달 */
+.name-modal { background:var(--bg); border-radius:20px 20px 0 0; padding:24px 20px 40px; width:100%; max-width:480px; }
+
+/* 장소 상세 시트 */
+.place-sheet { background:var(--bg); border-radius:20px 20px 0 0; padding:20px 20px 40px; width:100%; max-width:480px; max-height:85vh; overflow-y:auto; }
+.sheet-drag { width:40px; height:4px; background:var(--bg3); border-radius:2px; margin:0 auto 16px; }
+.sheet-img-wrap { width:100%; height:180px; border-radius:var(--rs); overflow:hidden; background:var(--bg3); display:flex; align-items:center; justify-content:center; margin-bottom:14px; font-size:40px; }
+.sheet-img-wrap img { width:100%; height:100%; object-fit:cover; }
+.sheet-name { font-size:18px; font-weight:700; margin-bottom:4px; }
+.sheet-cat  { font-size:13px; color:var(--t2); margin-bottom:8px; }
+.sheet-addr { font-size:13px; color:var(--t2); line-height:1.5; margin-bottom:14px; }
+.sheet-actions { display:flex; gap:8px; }
+.sheet-btn { flex:1; padding:11px; border-radius:var(--rs); border:.5px solid var(--br2); background:var(--bg2); color:var(--t); font-size:13px; font-weight:500; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; }
+.sheet-btn.primary { background:var(--acc); color:#fff; border-color:transparent; }
+
+/* 로딩 스피너 */
+.spinner { width:20px; height:20px; border:2px solid var(--br2); border-top-color:var(--acc); border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:rgba(20,20,18,.88); color:#fff; padding:10px 18px; border-radius:20px; font-size:13px; z-index:300; opacity:0; transition:opacity .25s; pointer-events:none; white-space:nowrap; }
+.toast.show { opacity:1; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <button class="header-back" id="header-back">&#8592;</button>
+    <span class="header-title" id="header-title">후쿠오카 여행 &#127471;&#127477;</span>
+    <div class="db-dot" id="db-dot" title="DB 연결 상태"></div>
+    <button class="header-action" id="header-action">+ 폴더</button>
+  </div>
+  <div class="tabbar" id="tabbar">
+    <div class="tab on" id="tab-home">&#128193; 위시리스트</div>
+    <div class="tab" id="tab-map">&#128506; 지도</div>
+  </div>
+
+  <div class="screen on" id="screen-home">
+    <div class="folder-list" id="folder-list">
+      <div class="empty-state"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-folder">
+    <div class="folder-detail">
+      <div class="map-container">
+        <div id="gmap"></div>
+        <div class="map-loading" id="map-loading">
+          <div class="spinner"></div>
+          <span>지도 불러오는 중...</span>
+        </div>
+      </div>
+      <div class="place-list-header">
+        <span class="place-list-title" id="place-count">0곳</span>
+        <div class="sort-tabs">
+          <button class="sort-tab on" id="sort-added">추가순</button>
+          <button class="sort-tab" id="sort-votes">투표순</button>
+        </div>
+      </div>
+      <div class="place-list" id="place-list"></div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-map">
+    <div id="gmap-all" style="width:100%;flex:1;min-height:300px;background:var(--bg3);"></div>
+    <div id="map-all-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <div class="screen" id="screen-search">
+    <div class="search-bar">
+      <div class="search-input-wrap">
+        <input class="search-input" id="search-input" type="text" placeholder="장소, 음식점, 관광지 검색..." autocomplete="off">
+        <button class="search-clear" id="search-clear">&#215;</button>
+      </div>
+    </div>
+    <div class="search-results" id="search-results">
+      <div class="search-hint"><span class="search-hint-icon">&#128269;</span>후쿠오카에서 가고 싶은 곳을 검색해보세요</div>
+    </div>
+  </div>
+</div>
+
+<!-- 이름 입력 모달 (첫 진입시) -->
+<div class="modal-bg" id="name-modal-bg">
+  <div class="name-modal">
+    <div class="modal-head">
+      <span class="modal-title">&#128075; 안녕하세요!</span>
+    </div>
+    <div class="modal-field">
+      <label>이름을 입력해주세요</label>
+      <input class="modal-input" id="name-input" placeholder="예) 지희, 소진, 화수, 효선...">
+    </div>
+    <button class="modal-btn" id="name-confirm-btn">시작하기</button>
+  </div>
+</div>
+
+<!-- 폴더 생성 모달 -->
+<div class="modal-bg" id="folder-modal-bg">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">폴더 만들기</span>
+      <button class="modal-close" id="folder-modal-close">&#215;</button>
+    </div>
+    <div class="modal-field">
+      <label>폴더 이름</label>
+      <input class="modal-input" id="folder-name-input" placeholder="예) 맛집, 카페, 숙소...">
+    </div>
+    <div class="modal-field">
+      <label>아이콘</label>
+      <div class="emoji-picker" id="emoji-picker"></div>
+    </div>
+    <div class="modal-field">
+      <label>색상</label>
+      <div class="color-picker" id="color-picker"></div>
+    </div>
+    <button class="modal-btn" id="create-folder-btn">만들기</button>
+  </div>
+</div>
+
+<!-- 폴더 선택 모달 -->
+<div class="modal-bg" id="folder-select-bg">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="folder-select-title">저장하기</span>
+      <button class="modal-close" id="folder-select-close">&#215;</button>
+    </div>
+    <div class="folder-select-list" id="folder-select-list"></div>
+    <button class="modal-btn" id="confirm-add-btn" style="margin-top:14px">추가하기</button>
+  </div>
+</div>
+
+<!-- 장소 상세 시트 -->
+<div class="modal-bg" id="place-sheet-bg">
+  <div class="place-sheet" id="place-sheet-inner"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════
+   CONFIG — Vercel 환경변수로 주입됨
+   SUPABASE_URL / SUPABASE_ANON_KEY 는
+   /api/config 엔드포인트에서 가져옴
+══════════════════════════════════════════ */
+var APP = {
+  db: null,
+  mapReady: false,
+  map: null,
+  markers: [],
+  mapInitialized: false,
+  placesService: null,
+  folders: [],          // 로컬 캐시
+  places: {},           // folderId → places[]
+  currentFolderId: null,
+  sortBy: 'added',
+  pendingPlace: null,
+  selectedFolderIds: [],
+  searchResults: {},
+  searchTimer: null,
+  myName: '',
+};
+
+var EMOJIS = ['🍜','🍣','☕','🏨','🌸','🎮','🛍️','🍺','🌊','🏯','🎭','🍱'];
+var COLORS = ['#e8533a','#f2a93b','#3b82f6','#10b981','#8b5cf6','#ec4899','#14b8a6','#f59e0b'];
+
+/* ── INIT ── */
+document.addEventListener('DOMContentLoaded', function() {
+  bindEvents();
+  checkName();
+  loadConfig();
+});
+
+function checkName() {
+  var saved = localStorage.getItem('fukuoka_name');
+  if (saved) { APP.myName = saved; }
+  else { document.getElementById('name-modal-bg').classList.add('open'); }
+}
+
+async function loadConfig() {
+  try {
+    var r = await fetch('/api/config');
+    var cfg = await r.json();
+    initSupabase(cfg.supabaseUrl, cfg.supabaseKey);
+    if (cfg.mapsKey) loadMaps(cfg.mapsKey);
+  } catch(e) { console.warn('Config load failed:', e); setDbDot('err'); renderFolderList(); }
+}
+
+/* ── SUPABASE ── */
+function initSupabase(url, key) {
+  if (!url || !key) { setDbDot('err'); renderFolderList(); return; }
+  APP.db = window.supabase.createClient(url, key);
+  setDbDot('live');
+  loadFolders();
+
+  // 실시간 구독
+  APP.db.channel('public-changes')
+    .on('postgres_changes', { event:'*', schema:'public', table:'folders' }, function() { loadFolders(); })
+    .on('postgres_changes', { event:'*', schema:'public', table:'places' },  function(payload) {
+      var fid = payload.new && payload.new.folder_id || payload.old && payload.old.folder_id;
+      if (fid) loadPlaces(fid);
+    })
+    .subscribe();
+}
+
+async function loadFolders() {
+  if (!APP.db) return;
+  var result = await APP.db.from('folders').select('*').order('created_at', { ascending:true });
+  if (result.error) { console.error(result.error); return; }
+  APP.folders = result.data || [];
+  renderFolderList();
+  if (APP.currentFolderId) {
+    var still = APP.folders.find(function(f){ return f.id === APP.currentFolderId; });
+    if (still) loadPlaces(APP.currentFolderId);
+  }
+}
+
+async function loadPlaces(folderId) {
+  if (!APP.db) return;
+  var result = await APP.db.from('places').select('*').eq('folder_id', folderId).order('added_at', { ascending:false });
+  if (result.error) { console.error(result.error); return; }
+  APP.places[folderId] = result.data || [];
+  if (APP.currentFolderId === folderId) renderPlaceList();
+  updateMapMarkers();
+  updateMapAllMarkers();
+}
+
+async function dbInsertFolder(data) {
+  if (!APP.db) return null;
+  var result = await APP.db.from('folders').insert([data]).select().single();
+  return result.data;
+}
+
+async function dbInsertPlace(data) {
+  if (!APP.db) return null;
+  var result = await APP.db.from('places').insert([data]).select().single();
+  return result.data;
+}
+
+async function dbUpdateVotes(placeId, votes) {
+  if (!APP.db) return;
+  await APP.db.from('places').update({ votes: votes }).eq('id', placeId);
+}
+
+async function dbDeletePlace(placeId) {
+  if (!APP.db) return;
+  await APP.db.from('places').delete().eq('id', placeId);
+}
+
+function setDbDot(state) {
+  var dot = document.getElementById('db-dot');
+  dot.className = 'db-dot' + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+}
+
+/* ── 이름 설정 ── */
+function bindEvents() {
+  document.getElementById('name-confirm-btn').addEventListener('click', function() {
+    var n = document.getElementById('name-input').value.trim();
+    if (!n) { showToast('이름을 입력해주세요'); return; }
+    APP.myName = n;
+    localStorage.setItem('fukuoka_name', n);
+    document.getElementById('name-modal-bg').classList.remove('open');
+  });
+  document.getElementById('name-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') document.getElementById('name-confirm-btn').click();
+  });
+
+  document.getElementById('header-back').addEventListener('click', goBack);
+  document.getElementById('header-action').addEventListener('click', headerAction);
+  document.getElementById('tab-home').addEventListener('click', function() { switchTab('home'); });
+  document.getElementById('tab-map').addEventListener('click', function() { switchTab('map'); });
+  document.getElementById('folder-modal-close').addEventListener('click', function() { document.getElementById('folder-modal-bg').classList.remove('open'); });
+  document.getElementById('folder-modal-bg').addEventListener('click', function(e) { if(e.target===this) this.classList.remove('open'); });
+  document.getElementById('folder-select-close').addEventListener('click', function() { document.getElementById('folder-select-bg').classList.remove('open'); });
+  document.getElementById('folder-select-bg').addEventListener('click', function(e) { if(e.target===this) this.classList.remove('open'); });
+  document.getElementById('place-sheet-bg').addEventListener('click', function(e) { if(e.target===this) this.classList.remove('open'); });
+  document.getElementById('create-folder-btn').addEventListener('click', createFolder);
+  document.getElementById('confirm-add-btn').addEventListener('click', confirmAddToFolder);
+  document.getElementById('sort-added').addEventListener('click', function() { setSort(this,'added'); });
+  document.getElementById('sort-votes').addEventListener('click', function() { setSort(this,'votes'); });
+  document.getElementById('search-clear').addEventListener('click', clearSearch);
+  document.getElementById('search-input').addEventListener('input', function() {
+    var val = this.value;
+    document.getElementById('search-clear').classList.toggle('show', val.length > 0);
+    clearTimeout(APP.searchTimer);
+    if (!val.trim()) { resetSearchHint(); return; }
+    APP.searchTimer = setTimeout(function() { doSearch(val); }, 400);
+  });
+}
+
+/* ── 폴더 ── */
+function openFolderModal() {
+  var ep = document.getElementById('emoji-picker');
+  ep.innerHTML = EMOJIS.map(function(e,i) {
+    return '<div class="emoji-opt'+(i===0?' on':'')+'" data-emoji="'+e+'">'+e+'</div>';
+  }).join('');
+  ep.querySelectorAll('.emoji-opt').forEach(function(el) {
+    el.addEventListener('click', function() {
+      ep.querySelectorAll('.emoji-opt').forEach(function(x){x.classList.remove('on');});
+      el.classList.add('on');
+    });
+  });
+  var cp = document.getElementById('color-picker');
+  cp.innerHTML = COLORS.map(function(c,i) {
+    return '<div class="color-opt'+(i===0?' on':'')+'" data-color="'+c+'" style="background:'+c+'"></div>';
+  }).join('');
+  cp.querySelectorAll('.color-opt').forEach(function(el) {
+    el.addEventListener('click', function() {
+      cp.querySelectorAll('.color-opt').forEach(function(x){x.classList.remove('on');});
+      el.classList.add('on');
+    });
+  });
+  document.getElementById('folder-name-input').value = '';
+  document.getElementById('folder-modal-bg').classList.add('open');
+  setTimeout(function(){ document.getElementById('folder-name-input').focus(); }, 300);
+}
+
+async function createFolder() {
+  var name = document.getElementById('folder-name-input').value.trim();
+  if (!name) { showToast('폴더 이름을 입력해주세요'); return; }
+  var emoji = (document.querySelector('#emoji-picker .emoji-opt.on')||{dataset:{}}).dataset.emoji || '📁';
+  var color = (document.querySelector('#color-picker .color-opt.on')||{dataset:{}}).dataset.color || COLORS[0];
+  document.getElementById('folder-modal-bg').classList.remove('open');
+
+  if (APP.db) {
+    await dbInsertFolder({ name:name, emoji:emoji, color:color });
+    // 실시간 구독이 loadFolders 호출함
+  } else {
+    APP.folders.push({ id:Date.now(), name:name, emoji:emoji, color:color });
+    renderFolderList();
+  }
+  showToast('"'+name+'" 폴더를 만들었어요');
+}
+
+function renderFolderList() {
+  var list = document.getElementById('folder-list');
+  if (!APP.folders.length) {
+    list.innerHTML = '<div class="empty-state"><span class="empty-icon">📂</span>아직 폴더가 없어요<br>+ 폴더 버튼으로 만들어보세요!</div>';
+    return;
+  }
+  var html = APP.folders.map(function(f) {
+    var cnt = APP.places[f.id] ? APP.places[f.id].length : (f.places_count||0);
+    return '<div class="folder-card" style="--fc:'+f.color+'" data-fid="'+f.id+'">' +
+      '<span class="folder-icon">'+f.emoji+'</span>' +
+      '<div class="folder-info"><div class="folder-name">'+esc(f.name)+'</div><div class="folder-meta">'+cnt+'곳 저장됨</div></div>' +
+      '<span class="folder-arrow">›</span></div>';
+  }).join('') + '<button class="folder-add-btn" id="inner-add-btn">＋ 새 폴더 만들기</button>';
+  list.innerHTML = html;
+  list.querySelectorAll('.folder-card').forEach(function(el) {
+    el.addEventListener('click', function() { openFolder(Number(el.dataset.fid)); });
+  });
+  var btn = document.getElementById('inner-add-btn');
+  if (btn) btn.addEventListener('click', openFolderModal);
+}
+
+function getFolder(id) { return APP.folders.find(function(f){ return f.id===id; }); }
+
+async function openFolder(folderId) {
+  APP.currentFolderId = folderId;
+  APP.sortBy = 'added';
+  var folder = getFolder(folderId);
+  document.getElementById('header-back').classList.add('show');
+  document.getElementById('header-title').textContent = folder.emoji+' '+folder.name;
+  document.getElementById('header-action').textContent = '+ 검색';
+  document.getElementById('tabbar').style.display = 'none';
+  showScreen('folder');
+  await loadPlaces(folderId);
+  initMap();
+}
+
+function goBack() {
+  APP.currentFolderId = null;
+  document.getElementById('header-back').classList.remove('show');
+  document.getElementById('header-title').textContent = '후쿠오카 여행 🇯🇵';
+  document.getElementById('header-action').textContent = '+ 폴더';
+  document.getElementById('tabbar').style.display = 'flex';
+  showScreen('home');
+}
+
+function headerAction() {
+  if (APP.currentFolderId) {
+    APP.currentFolderId = null;
+    document.getElementById('header-back').classList.remove('show');
+    document.getElementById('header-title').textContent = '후쿠오카 여행 🇯🇵';
+    document.getElementById('header-action').textContent = '+ 폴더';
+    document.getElementById('tabbar').style.display = 'flex';
+    switchTab('search');
+  } else { openFolderModal(); }
+}
+
+/* ── 장소 리스트 ── */
+function setSort(btn, sort) {
+  APP.sortBy = sort;
+  document.querySelectorAll('.sort-tab').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
+  renderPlaceList();
+}
+
+function renderPlaceList() {
+  var fid = APP.currentFolderId;
+  var folder = getFolder(fid);
+  if (!folder) return;
+  var places = (APP.places[fid] || []).slice();
+  document.getElementById('place-count').textContent = places.length+'곳';
+  var list = document.getElementById('place-list');
+  if (!places.length) {
+    list.innerHTML = '<div class="empty-state"><span class="empty-icon">'+folder.emoji+'</span>아직 저장된 장소가 없어요<br>위쪽 + 검색 버튼으로 추가해보세요</div>';
+    return;
+  }
+  if (APP.sortBy === 'votes') places.sort(function(a,b){ return (b.votes||0)-(a.votes||0); });
+  else places.sort(function(a,b){ return new Date(b.added_at)-new Date(a.added_at); });
+
+  list.innerHTML = places.map(function(p, idx) {
+    var rankClass = idx===0?'r1':idx===1?'r2':idx===2?'r3':'';
+    var rank = APP.sortBy==='votes' ? '<span class="place-rank '+rankClass+'">'+(idx+1)+'</span>' : '';
+    var thumb = p.photo ? '<img src="'+esc(p.photo)+'" alt="">' : (p.emoji||'📍');
+    return '<div class="place-item-wrap" id="wrap-'+p.id+'">' +
+      '<div class="delete-bg" data-pid="'+p.id+'"><span>삭제</span></div>' +
+      '<div class="place-item" id="item-'+p.id+'" data-pid="'+p.id+'">' +
+        rank +
+        '<div class="place-thumb">'+thumb+'</div>' +
+        '<div class="place-info">' +
+          '<div class="place-name">'+esc(p.name)+'</div>' +
+          '<div class="place-cat">'+esc(p.category||'')+'</div>' +
+          '<div class="place-addr">'+esc(p.address||'')+'</div>' +
+          '<div class="added-by">by '+esc(p.added_by||'')+'</div>' +
+        '</div>' +
+        '<div class="vote-zone">' +
+          '<button class="vote-btn" data-pid="'+p.id+'">❤️</button>' +
+          '<span class="vote-count" id="vc-'+p.id+'">'+(p.votes||0)+'</span>' +
+        '</div>' +
+      '</div></div>';
+  }).join('');
+
+  list.querySelectorAll('.vote-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) { e.stopPropagation(); vote(Number(btn.dataset.pid)); });
+  });
+  list.querySelectorAll('.delete-bg').forEach(function(el) {
+    el.addEventListener('click', function() { deletePlace(Number(el.dataset.pid)); });
+  });
+  list.querySelectorAll('.place-item').forEach(function(el) {
+    el.addEventListener('click', function() { openPlaceSheet(Number(el.dataset.pid)); });
+    bindSwipe(el, Number(el.dataset.pid));
+  });
+  updateMapMarkers();
+}
+
+async function vote(placeId) {
+  var fid = APP.currentFolderId;
+  var places = APP.places[fid] || [];
+  var place = places.find(function(p){ return p.id===placeId; });
+  if (!place) return;
+  place.votes = (place.votes||0) + 1;
+  var vc = document.getElementById('vc-'+placeId);
+  if (vc) vc.textContent = place.votes;
+  await dbUpdateVotes(placeId, place.votes);
+  showToast('투표했어요 ❤️');
+}
+
+async function deletePlace(placeId) {
+  await dbDeletePlace(placeId);
+  var fid = APP.currentFolderId;
+  if (APP.places[fid]) APP.places[fid] = APP.places[fid].filter(function(p){ return p.id!==placeId; });
+  renderPlaceList();
+  showToast('삭제했어요');
+}
+
+/* ── 스와이프 삭제 ── */
+function bindSwipe(el, id) {
+  var startX=0, moved=false;
+  var wrap = document.getElementById('wrap-'+id);
+  var delBg = wrap ? wrap.querySelector('.delete-bg') : null;
+  el.addEventListener('touchstart', function(e){
+    startX = e.touches[0].clientX; moved = false;
+    // 다른 열린 스와이프 닫기
+    document.querySelectorAll('.place-item').forEach(function(o){ if(o!==el) o.style.transform=''; });
+    document.querySelectorAll('.delete-bg').forEach(function(d){ d.style.transform='translateX(100%)'; });
+  }, {passive:true});
+  el.addEventListener('touchmove', function(e){
+    var dx = e.touches[0].clientX - startX;
+    if (dx < -8) {
+      moved = true;
+      var t = Math.max(dx, -80);
+      el.style.transform = 'translateX('+t+'px)';
+      if (delBg) delBg.style.transform = 'translateX('+(80+t)+'px)';
+    }
+  }, {passive:true});
+  el.addEventListener('touchend', function(){
+    if (!moved) return;
+    var cur = parseFloat(el.style.transform.replace(/[^-\d.]/g,''))||0;
+    if (cur < -40) {
+      el.style.transform = 'translateX(-80px)';
+      if (delBg) delBg.style.transform = 'translateX(0)';
+    } else {
+      el.style.transform = '';
+      if (delBg) delBg.style.transform = 'translateX(100%)';
+    }
+    moved = false;
+  });
+}
+
+/* ── 장소 상세 ── */
+function openPlaceSheet(placeId) {
+  var fid = APP.currentFolderId;
+  var places = APP.places[fid] || [];
+  var p = places.find(function(x){ return x.id===placeId; });
+  if (!p) return;
+  var inner = document.getElementById('place-sheet-inner');
+  var imgHtml = p.photo
+    ? '<div class="sheet-img-wrap"><img src="'+esc(p.photo)+'" alt=""></div>'
+    : '<div class="sheet-img-wrap">'+(p.emoji||'📍')+'</div>';
+  inner.innerHTML = '<div class="sheet-drag"></div>'+imgHtml+
+    '<div class="sheet-name">'+esc(p.name)+'</div>'+
+    '<div class="sheet-cat">'+esc(p.category||'')+'</div>'+
+    '<div class="sheet-addr">📍 '+esc(p.address||'주소 정보 없음')+'</div>'+
+    '<div style="font-size:12px;color:var(--t3);margin-bottom:14px">by '+esc(p.added_by||'')+'</div>'+
+    '<div class="sheet-actions">'+
+      (p.maps_url?'<button class="sheet-btn" id="sbm">🗺️ 구글맵</button>':'')+
+      '<button class="sheet-btn primary" id="sbv">❤️ 투표 ('+(p.votes||0)+')</button>'+
+    '</div>';
+  if (p.maps_url) document.getElementById('sbm').addEventListener('click', function(){ window.open(p.maps_url,'_blank'); });
+  document.getElementById('sbv').addEventListener('click', function(){ vote(placeId); document.getElementById('place-sheet-bg').classList.remove('open'); });
+  document.getElementById('place-sheet-bg').classList.add('open');
+}
+
+/* ── 구글맵 ── */
+function loadMaps(key) {
+  var s = document.createElement('script');
+  s.src = 'https://maps.googleapis.com/maps/api/js?key='+key+'&libraries=places&language=ko&callback=onMapsReady';
+  s.async = true;
+  document.head.appendChild(s);
+}
+window.onMapsReady = function() {
+  APP.mapReady = true;
+  if (APP.currentFolderId) initMap();
+  // 지도탭이 열려있으면 전체지도도 초기화
+  if (document.getElementById('screen-map').classList.contains('on')) initMapAll();
+};
+function initMap() {
+  var loadingEl = document.getElementById('map-loading');
+  if (!APP.mapReady) { if(loadingEl) loadingEl.innerHTML = '<span style="font-size:13px;color:var(--t2)">Maps API 키를 Vercel 환경변수에 추가해주세요</span>'; return; }
+  if (!APP.mapInitialized) {
+    if(loadingEl) loadingEl.style.display='none';
+    APP.map = new google.maps.Map(document.getElementById('gmap'), {
+      center:{lat:33.5902,lng:130.4017}, zoom:13,
+      mapTypeControl:false, streetViewControl:false, fullscreenControl:false,
+      styles:[{featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]}]
+    });
+    APP.placesService = new google.maps.places.PlacesService(APP.map);
+    APP.mapInitialized = true;
+  }
+  updateMapMarkers();
+}
+function updateMapMarkers() {
+  if (!APP.map) return;
+  APP.markers.forEach(function(m){ m.setMap(null); });
+  APP.markers = [];
+  var fid = APP.currentFolderId;
+  var places = (APP.places[fid]||[]);
+  var bounds = new google.maps.LatLngBounds();
+  var hasPin = false;
+  places.forEach(function(p, idx) {
+    if (!p.lat || !p.lng) return;
+    var marker = new google.maps.Marker({
+      position:{lat:p.lat,lng:p.lng}, map:APP.map, title:p.name,
+      label:{text:String(idx+1),color:'#fff',fontSize:'12px',fontWeight:'700'},
+      icon:{path:google.maps.SymbolPath.CIRCLE,scale:16,fillColor:'#e8533a',fillOpacity:1,strokeColor:'#fff',strokeWeight:2}
+    });
+    (function(pid){ marker.addListener('click', function(){ openPlaceSheet(pid); }); })(p.id);
+    APP.markers.push(marker);
+    bounds.extend({lat:p.lat,lng:p.lng});
+    hasPin = true;
+  });
+  if (hasPin) APP.map.fitBounds(bounds, {top:20,right:20,bottom:20,left:20});
+}
+
+/* ── 전체 지도 (지도 탭) ── */
+var mapAllInitialized = false;
+function initMapAll() {
+  var loadEl = document.getElementById('map-all-loading');
+  if (!APP.mapReady) return;
+  if (!mapAllInitialized) {
+    if (loadEl) loadEl.style.display = 'none';
+    APP.mapAll = new google.maps.Map(document.getElementById('gmap-all'), {
+      center:{lat:33.5902,lng:130.4017}, zoom:13,
+      mapTypeControl:false, streetViewControl:false, fullscreenControl:false,
+      styles:[{featureType:'poi',elementType:'labels',stylers:[{visibility:'off'}]}]
+    });
+    mapAllInitialized = true;
+  }
+  updateMapAllMarkers();
+}
+function updateMapAllMarkers() {
+  if (!APP.mapAll) return;
+  (APP.markersAll||[]).forEach(function(m){ m.setMap(null); });
+  APP.markersAll = [];
+  var bounds = new google.maps.LatLngBounds();
+  var hasPin = false;
+  APP.folders.forEach(function(folder) {
+    var places = APP.places[folder.id] || [];
+    places.forEach(function(p, idx) {
+      if (!p.lat || !p.lng) return;
+      var marker = new google.maps.Marker({
+        position:{lat:p.lat,lng:p.lng}, map:APP.mapAll, title:p.name,
+        icon:{
+          path:google.maps.SymbolPath.CIRCLE,
+          scale:14,
+          fillColor: folder.color || '#e8533a',
+          fillOpacity:1,
+          strokeColor:'#fff',
+          strokeWeight:2
+        }
+      });
+      // 클릭시 장소명 infowindow
+      (function(place, fc){
+        var iw = new google.maps.InfoWindow({
+          content:'<div style="font-size:13px;font-weight:600;padding:2px 4px">'+
+            '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+fc+';margin-right:5px;vertical-align:middle"></span>'+
+            place.name+'</div>'
+        });
+        marker.addListener('click', function(){ iw.open(APP.mapAll, marker); });
+      })(p, folder.color||'#e8533a');
+      APP.markersAll.push(marker);
+      bounds.extend({lat:p.lat,lng:p.lng});
+      hasPin = true;
+    });
+  });
+  if (hasPin) APP.mapAll.fitBounds(bounds, {top:20,right:20,bottom:20,left:20});
+}
+
+/* ── 검색 ── */
+function doSearch(query) {
+  var el = document.getElementById('search-results');
+  el.innerHTML = '<div class="search-hint"><span class="search-hint-icon">⏳</span>검색 중...</div>';
+  if (!APP.placesService) { showDummy(query); return; }
+  APP.placesService.textSearch({ query: query+' 후쿠오카' }, function(results, status) {
+    if (status===google.maps.places.PlacesServiceStatus.OK && results && results.length) renderResults(results);
+    else el.innerHTML = '<div class="search-hint"><span class="search-hint-icon">😅</span>검색 결과가 없어요</div>';
+  });
+}
+function getCatEmoji(t) {
+  return {restaurant:'🍽️',food:'🍜',cafe:'☕',lodging:'🏨',tourist_attraction:'🌸',store:'🛍️',bar:'🍺',park:'🌳',museum:'🏛️'}[t]||'📍';
+}
+function renderResults(results) {
+  var el = document.getElementById('search-results');
+  var addedIds = {};
+  APP.folders.forEach(function(f){ (APP.places[f.id]||[]).forEach(function(p){ if(p.place_id) addedIds[p.place_id]=true; }); });
+  APP.searchResults = {};
+  results.slice(0,10).forEach(function(r){ APP.searchResults[r.place_id]=r; });
+  el.innerHTML = results.slice(0,10).map(function(place) {
+    var photo = place.photos&&place.photos[0] ? place.photos[0].getUrl({maxWidth:80,maxHeight:80}) : '';
+    var cat = (place.types||[]).find(function(t){ return !['point_of_interest','establishment'].includes(t); });
+    var catLabel = {restaurant:'음식점',food:'음식점',cafe:'카페',lodging:'숙소',tourist_attraction:'관광지',store:'쇼핑',bar:'바'}[cat]||(cat?cat.replace(/_/g,' '):'');
+    var isAdded = !!addedIds[place.place_id];
+    return '<div class="search-result-item">'+
+      '<div class="result-icon">'+(photo?'<img src="'+esc(photo)+'" alt="">':getCatEmoji(cat))+'</div>'+
+      '<div class="result-info"><div class="result-name">'+esc(place.name)+'</div><div class="result-addr">'+esc((catLabel?catLabel+' · ':'')+( place.formatted_address||''))+'</div></div>'+
+      '<button class="result-add-btn'+(isAdded?' added':'')+'" data-pid="'+esc(place.place_id)+'">'+(isAdded?'저장됨':'+ 저장')+'</button>'+
+    '</div>';
+  }).join('');
+  el.querySelectorAll('.result-add-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var pid = btn.dataset.pid;
+      var place = APP.searchResults[pid];
+      if (!place) return;
+      var photo = place.photos&&place.photos[0] ? place.photos[0].getUrl({maxWidth:400,maxHeight:300}) : '';
+      var cat = (place.types||[]).find(function(t){ return !['point_of_interest','establishment'].includes(t); });
+      var catLabel = {restaurant:'음식점',food:'음식점',cafe:'카페',lodging:'숙소',tourist_attraction:'관광지',store:'쇼핑',bar:'바'}[cat]||(cat?cat.replace(/_/g,' '):'');
+      openFolderSelectModal({
+        place_id: place.place_id,
+        name: place.name,
+        address: place.formatted_address||'',
+        category: catLabel,
+        lat: place.geometry&&place.geometry.location ? place.geometry.location.lat() : null,
+        lng: place.geometry&&place.geometry.location ? place.geometry.location.lng() : null,
+        photo: photo,
+        emoji: getCatEmoji(cat),
+        maps_url: 'https://www.google.com/maps/place/?q=place_id:'+place.place_id
+      });
+    });
+  });
+}
+function showDummy(query) {
+  document.getElementById('search-results').innerHTML =
+    '<div style="padding:10px 16px;font-size:12px;color:var(--t3);background:var(--bg2)">⚠️ 지도 API 연결 전 미리보기</div>'+
+    ['이치란 라멘 캐널시티점','모츠나베 오야마','후쿠오카 타워'].map(function(name) {
+      return '<div class="search-result-item">'+
+        '<div class="result-icon">🍜</div>'+
+        '<div class="result-info"><div class="result-name">'+name+'</div><div class="result-addr">후쿠오카시</div></div>'+
+        '<button class="result-add-btn" data-dummy="'+esc(name)+'">+ 저장</button></div>';
+    }).join('');
+  document.querySelectorAll('[data-dummy]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      openFolderSelectModal({name:btn.dataset.dummy,address:'후쿠오카시',category:'음식점',emoji:'🍜',lat:33.59,lng:130.40});
+    });
+  });
+}
+function clearSearch() {
+  document.getElementById('search-input').value='';
+  document.getElementById('search-clear').classList.remove('show');
+  resetSearchHint();
+}
+function resetSearchHint() {
+  document.getElementById('search-results').innerHTML='<div class="search-hint"><span class="search-hint-icon">🔍</span>후쿠오카에서 가고 싶은 곳을 검색해보세요</div>';
+}
+
+/* ── 폴더 선택 모달 ── */
+function openFolderSelectModal(placeData) {
+  APP.pendingPlace = placeData;
+  APP.selectedFolderIds = [];
+  document.getElementById('folder-select-title').textContent = '"'+(placeData.name||'')+'" 저장하기';
+  var listEl = document.getElementById('folder-select-list');
+  if (!APP.folders.length) {
+    listEl.innerHTML='<div style="padding:16px;text-align:center;color:var(--t2);font-size:14px">폴더가 없어요. 먼저 폴더를 만들어주세요!</div>';
+  } else {
+    listEl.innerHTML = APP.folders.map(function(f) {
+      return '<div class="folder-select-item" data-fid="'+f.id+'">'+
+        '<span style="width:10px;height:10px;border-radius:50%;background:'+f.color+';flex-shrink:0"></span>'+
+        '<span>'+f.emoji+' '+esc(f.name)+'</span>'+
+        '<span style="margin-left:auto;font-size:12px;color:var(--t3)">'+((APP.places[f.id]||[]).length)+'곳</span>'+
+      '</div>';
+    }).join('');
+    listEl.querySelectorAll('.folder-select-item').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var fid = Number(el.dataset.fid);
+        var idx = APP.selectedFolderIds.indexOf(fid);
+        if (idx>-1) { APP.selectedFolderIds.splice(idx,1); el.classList.remove('on'); }
+        else { APP.selectedFolderIds.push(fid); el.classList.add('on'); }
+      });
+    });
+    if (APP.currentFolderId) {
+      var el = listEl.querySelector('[data-fid="'+APP.currentFolderId+'"]');
+      if (el) { el.classList.add('on'); APP.selectedFolderIds.push(APP.currentFolderId); }
+    }
+  }
+  document.getElementById('folder-select-bg').classList.add('open');
+}
+
+async function confirmAddToFolder() {
+  if (!APP.selectedFolderIds.length) { showToast('폴더를 선택해주세요'); return; }
+  var place = APP.pendingPlace;
+  for (var i=0; i<APP.selectedFolderIds.length; i++) {
+    var fid = APP.selectedFolderIds[i];
+    var existing = (APP.places[fid]||[]).find(function(p){ return p.place_id && p.place_id===place.place_id; });
+    if (existing) continue;
+    var row = Object.assign({}, place, { folder_id: fid, added_by: APP.myName, votes: 0 });
+    if (APP.db) {
+      var inserted = await dbInsertPlace(row);
+      if (inserted) {
+        if (!APP.places[fid]) APP.places[fid] = [];
+        APP.places[fid].unshift(inserted);
+      }
+    } else {
+      if (!APP.places[fid]) APP.places[fid] = [];
+      APP.places[fid].unshift(Object.assign({}, row, { id: Date.now()+Math.random(), added_at: new Date().toISOString() }));
+    }
+  }
+  document.getElementById('folder-select-bg').classList.remove('open');
+  showToast(APP.selectedFolderIds.length+'개 폴더에 저장했어요 ✓');
+  renderFolderList();
+  if (APP.currentFolderId) renderPlaceList();
+}
+
+/* ── 화면 전환 ── */
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('on'); });
+  document.getElementById('screen-'+name).classList.add('on');
+}
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('on'); });
+  var tabEl = document.getElementById('tab-'+name);
+  if (tabEl) tabEl.classList.add('on');
+  if (name === 'map') {
+    showScreen('map');
+    initMapAll();
+  } else if (name === 'search') {
+    showScreen('search');
+    setTimeout(function(){ document.getElementById('search-input').focus(); }, 200);
+  } else {
+    showScreen(name);
+  }
+}
+
+/* ── UTIL ── */
+function esc(s) {
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function showToast(msg) {
+  var t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); },2400);
+}
+</script>
+</body>
+</html>
